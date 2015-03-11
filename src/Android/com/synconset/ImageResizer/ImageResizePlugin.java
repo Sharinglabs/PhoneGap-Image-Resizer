@@ -92,17 +92,28 @@ public class ImageResizePlugin extends CordovaPlugin {
             }
         }
         
-        protected Bitmap getBitmap(String imageData, String imageDataType, BitmapFactory.Options options) throws IOException, URISyntaxException {
-            Bitmap bmp;
-            if (imageDataType.equals(IMAGE_DATA_TYPE_BASE64)) {
-                byte[] blob = Base64.decode(imageData, Base64.DEFAULT);
-                bmp = BitmapFactory.decodeByteArray(blob, 0, blob.length, options);
-            } else {
-                URI uri = new URI(imageData);
-                File imageFile = new File(uri);
-                bmp = BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+        protected Bitmap getBitmap(String imageData, String imageDataType, BitmapFactory.Options options, boolean scaleDownIfOutOfMemoryException) throws IOException, URISyntaxException {
+			try {
+				Bitmap bmp;
+				if (imageDataType.equals(IMAGE_DATA_TYPE_BASE64)) {
+					byte[] blob = Base64.decode(imageData, Base64.DEFAULT);
+					bmp = BitmapFactory.decodeByteArray(blob, 0, blob.length, options);
+				} else {
+					URI uri = new URI(imageData);
+					File imageFile = new File(uri);
+					bmp = BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+				}
+				return bmp;
+			} catch (OutOfMemoryError e) {
+				Log.d("PLUGIN", e.getMessage());
+				if (scaleDownIfOutOfMemoryException && options.inSampleSize < 64) { 
+					// Tries to scale it down even more, but not for ever.
+					options.inSampleSize = options.inSampleSize * 2;
+					return getBitmap(imageData, imageDataType, options, scaleDownIfOutOfMemoryException);
+				} else {
+					callbackContext.error(e.getMessage());
+				}
             }
-            return bmp;
         }
         
         protected void storeImage(JSONObject params, String format, Bitmap bmp, CallbackContext callbackContext) throws JSONException, IOException, URISyntaxException {
@@ -141,7 +152,7 @@ public class ImageResizePlugin extends CordovaPlugin {
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
-                Bitmap bmp = getBitmap(imageData, imageDataType, options);
+                Bitmap bmp = getBitmap(imageData, imageDataType, options, false);
                 JSONObject res = new JSONObject();
                 res.put("width", options.outWidth);
                 res.put("height", options.outHeight);
@@ -166,7 +177,7 @@ public class ImageResizePlugin extends CordovaPlugin {
         @Override
         public void run() {
             try {
-                Bitmap bmp = getBitmap(imageData, imageDataType, new BitmapFactory.Options());
+                Bitmap bmp = getBitmap(imageData, imageDataType, new BitmapFactory.Options(), false);
                 if (bmp == null) {
                     throw new IOException("The image file could not be opened.");
                 }
@@ -194,7 +205,7 @@ public class ImageResizePlugin extends CordovaPlugin {
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
-                getBitmap(imageData, imageDataType, options);
+                getBitmap(imageData, imageDataType, options, false);
                 float[] sizes = calculateFactors(params, options.outWidth, options.outHeight);
                 float reqWidth = options.outWidth * sizes[0];
                 float reqHeight = options.outHeight * sizes[1];
@@ -202,7 +213,8 @@ public class ImageResizePlugin extends CordovaPlugin {
         
                 options = new BitmapFactory.Options();
                 options.inSampleSize = inSampleSize;
-                Bitmap bmp = getBitmap(imageData, imageDataType, options);
+                options.inPurgeable = true;
+                Bitmap bmp = getBitmap(imageData, imageDataType, options, true);
                 if (bmp == null) {
                     throw new IOException("The image file could not be opened.");
                 }
