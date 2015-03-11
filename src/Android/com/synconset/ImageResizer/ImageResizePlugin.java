@@ -112,6 +112,7 @@ public class ImageResizePlugin extends CordovaPlugin {
 					return getBitmap(imageData, imageDataType, options, scaleDownIfOutOfMemoryException);
 				} else {
 					callbackContext.error(e.getMessage());
+					return null;
 				}
             }
         }
