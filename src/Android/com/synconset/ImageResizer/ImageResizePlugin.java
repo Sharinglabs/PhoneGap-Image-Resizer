@@ -33,7 +33,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.os.Environment;
 import android.util.Base64;
-import android.util.Log;
+import org.apache.cordova.LOG;
 import android.util.DisplayMetrics;
 
 public class ImageResizePlugin extends CordovaPlugin {
@@ -66,7 +66,7 @@ public class ImageResizePlugin extends CordovaPlugin {
             cordova.getThreadPool().execute(storeImage);
             return true;
         } else {
-            Log.d("PLUGIN", "unknown action");
+            LOG.d("PLUGIN", "unknown action");
             return false;
         }
     }
@@ -105,7 +105,7 @@ public class ImageResizePlugin extends CordovaPlugin {
 				}
 				return bmp;
 			} catch (OutOfMemoryError e) {
-				Log.d("PLUGIN", e.getMessage());
+				LOG.d("PLUGIN", e.getMessage());
 				if (scaleDownIfOutOfMemoryException && options.inSampleSize < 64) { 
 					// Tries to scale it down even more, but not for ever.
 					options.inSampleSize = options.inSampleSize * 2;
@@ -114,7 +114,7 @@ public class ImageResizePlugin extends CordovaPlugin {
 					callbackContext.error(e.getMessage());
 					return null;
 				}
-            }
+			}
         }
         
         protected void storeImage(JSONObject params, String format, Bitmap bmp, CallbackContext callbackContext) throws JSONException, IOException, URISyntaxException {
@@ -161,10 +161,10 @@ public class ImageResizePlugin extends CordovaPlugin {
             } catch (JSONException e) {
                 callbackContext.error(e.getMessage());
             } catch (IOException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             } catch (URISyntaxException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             }
         }
@@ -184,13 +184,13 @@ public class ImageResizePlugin extends CordovaPlugin {
                 }
                 this.storeImage(params, format, bmp, callbackContext);
             } catch (JSONException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             } catch (IOException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             } catch (URISyntaxException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             }
         }
@@ -221,7 +221,19 @@ public class ImageResizePlugin extends CordovaPlugin {
                 }
                 
                 sizes = calculateFactors(params, options.outWidth, options.outHeight);
-                bmp = getResizedBitmap(bmp, sizes[0], sizes[1]);
+
+				ExifHelper exif = new ExifHelper();
+				int rotate = 0;
+				try {
+					exif.createInFile(imageData);
+					exif.readExifData();
+					rotate = exif.getOrientation();
+					LOG.d("PLUGIN", "Image rotation=" + rotate);
+				} catch (IOException e) {
+					LOG.e("PLUGIN", "Error getting image rotation" + e.getMessage());
+				}
+
+                bmp = getResizedBitmap(bmp, sizes[0], sizes[1], rotate);
                         
                 if (params.getBoolean("storeImage")) {
                     storeImage(params, format, bmp, callbackContext);
@@ -243,24 +255,31 @@ public class ImageResizePlugin extends CordovaPlugin {
                     callbackContext.success(res);
                 }
             } catch (JSONException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             } catch (IOException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             } catch (URISyntaxException e) {
-                Log.d("PLUGIN", e.getMessage());
+                LOG.d("PLUGIN", e.getMessage());
                 callbackContext.error(e.getMessage());
             }
         }
         
-        private Bitmap getResizedBitmap(Bitmap bm, float widthFactor, float heightFactor) {
+        private Bitmap getResizedBitmap(Bitmap bm, float widthFactor, float heightFactor, int rotate) {
             int width = bm.getWidth();
             int height = bm.getHeight();
             // create a matrix for the manipulation
             Matrix matrix = new Matrix();
             // resize the bit map
             matrix.postScale(widthFactor, heightFactor);
+			
+			if (rotate == 180) {
+				matrix.postRotate(rotate);
+			} else {
+				matrix.postRotate(rotate, (float) width / 2, (float) height / 2);
+			}
+			
             // recreate the new Bitmap
             Bitmap resizedBitmap = Bitmap.createBitmap(bm, 0, 0, width, height,
                     matrix, false);
