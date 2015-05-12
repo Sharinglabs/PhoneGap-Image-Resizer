@@ -171,12 +171,13 @@
         
         NSMutableString* fullFileName;
         if (![directory isEqualToString:@""]) {
-            // In case the path starts with file:///, removes the protocole and only leaves the 1st slash.
-            if ([directory hasPrefix:@"file:///"]) {
-                // 7 not 8, keeps the 1st /.
-                directory = [directory substringFromIndex:7];
-            }
-            fullFileName = [NSMutableString stringWithString: directory];
+            // Removes the file protocole (can have file:// or file:///), as well as "localhost"
+            // (on iPhone4S running 6.1.2, we get "file://localhost/var/...", we only keep "/var/...").
+            NSError *errorRegex = nil;
+            NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"^(file:/*)?/(localhost/)?" options:NSRegularExpressionCaseInsensitive error:&errorRegex];
+            
+            NSString *modifiedDirectory = [regex stringByReplacingMatchesInString:directory options:0 range:NSMakeRange(0, [directory length]) withTemplate:@"/"];
+            fullFileName = [NSMutableString stringWithString: modifiedDirectory];
             if (![[NSFileManager defaultManager] fileExistsAtPath:fullFileName]) {
                 NSError *error = nil;
                 NSURL *fullFileNameNSURL = [NSURL fileURLWithPath:fullFileName isDirectory:YES];
