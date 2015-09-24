@@ -282,7 +282,7 @@ public class ImageResizePlugin extends CordovaPlugin {
 			
 			if (rotate == 180) {
 				matrix.postRotate(rotate);
-			} else (rotate != 0) {
+			} else if (rotate != 0) {
 				// Rotates around the center, thus /2.
 				matrix.postRotate(rotate, (float) width / 2, (float) height / 2);
 			}
