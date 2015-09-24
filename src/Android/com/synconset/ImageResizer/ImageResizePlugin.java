@@ -351,8 +351,8 @@ public class ImageResizePlugin extends CordovaPlugin {
                     heightFactor = widthFactor; // scale to fit width
                 }
 
-                // We only want to downscale, so make sure the factors are >= 1.
-                if (widthFactor < 1) {
+                // We only want to downscale, so make sure the factors are <= 1.
+                if (widthFactor > 1) {
                     widthFactor = 1;
                     heightFactor = 1;
                 }
