@@ -210,7 +210,8 @@ public class ImageResizePlugin extends CordovaPlugin {
                 float[] sizes = calculateFactors(params, options.outWidth, options.outHeight);
                 float reqWidth = options.outWidth * sizes[0];
                 float reqHeight = options.outHeight * sizes[1];
-                int inSampleSize = calculateInSampleSize(options, (int)reqWidth, (int)reqHeight);
+                float sampleSizeTolerance = params.has("tolerance") ? (float)params.getDouble("tolerance") : 1;
+                int inSampleSize = calculateInSampleSize(options, (int)reqWidth, (int)reqHeight, sampleSizeTolerance);
         
                 options = new BitmapFactory.Options();
                 options.inSampleSize = inSampleSize;
@@ -234,7 +235,7 @@ public class ImageResizePlugin extends CordovaPlugin {
 				}
 
                 bmp = getResizedBitmap(bmp, sizes[0], sizes[1], rotate);
-                        
+
                 if (params.getBoolean("storeImage")) {
                     storeImage(params, format, bmp, callbackContext);
                 } else {
@@ -267,6 +268,11 @@ public class ImageResizePlugin extends CordovaPlugin {
         }
         
         private Bitmap getResizedBitmap(Bitmap bm, float widthFactor, float heightFactor, int rotate) {
+            // Returns the original bitmap if there's nothing to do.
+            if (rotate == 0 && widthFactor == 1 && heightFactor == 1) {
+                return bm;
+            }
+            
             int width = bm.getWidth();
             int height = bm.getHeight();
             // create a matrix for the manipulation
@@ -276,17 +282,18 @@ public class ImageResizePlugin extends CordovaPlugin {
 			
 			if (rotate == 180) {
 				matrix.postRotate(rotate);
-			} else {
+			} else (rotate != 0) {
+				// Rotates around the center, thus /2.
 				matrix.postRotate(rotate, (float) width / 2, (float) height / 2);
 			}
 			
-            // recreate the new Bitmap
+            // Creates resulting bitmap.
             Bitmap resizedBitmap = Bitmap.createBitmap(bm, 0, 0, width, height,
                     matrix, false);
             return resizedBitmap;
         }
         
-        private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight, float sampleSizeTolerance) {
             // Raw height and width of image
             final int height = options.outHeight;
             final int width = options.outWidth;
@@ -301,6 +308,13 @@ public class ImageResizePlugin extends CordovaPlugin {
                 while ((halfHeight / inSampleSize) > reqHeight && (halfWidth / inSampleSize) > reqWidth) {
                     inSampleSize *= 2;
                 }
+
+				// If we couldn't downsample, check if we could when using some tolerance.
+				if (inSampleSize == 1 && sampleSizeTolerance < 1) {
+					if (halfHeight >= reqHeight * sampleSizeTolerance && halfWidth >= reqWidth* sampleSizeTolerance) {
+						inSampleSize = 2;
+					}
+				}
             }
         
             return inSampleSize;
@@ -335,6 +349,12 @@ public class ImageResizePlugin extends CordovaPlugin {
                     widthFactor = heightFactor; // scale to fit height
                 } else {
                     heightFactor = widthFactor; // scale to fit width
+                }
+
+                // We only want to downscale, so make sure the factors are >= 1.
+                if (widthFactor < 1) {
+                    widthFactor = 1;
+                    heightFactor = 1;
                 }
             } else {
                 widthFactor = desiredWidth;
