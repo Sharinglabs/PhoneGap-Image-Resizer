@@ -226,7 +226,12 @@ public class ImageResizePlugin extends CordovaPlugin {
 				ExifHelper exif = new ExifHelper();
 				int rotate = 0;
 				try {
-					exif.createInFile(imageData);
+					// For some reasons if the image path starts with "file:///storage/..." then getting
+					// the EXIF doesn't work, while it works if it starts with "/storage/...".
+					// So we'll remove "file://" or "file:/" to only keep one leading "/".
+					String regex = "file:///?";
+					String pathForExif = imageData.replaceAll(regex, "/");
+					exif.createInFile(pathForExif);
 					exif.readExifData();
 					rotate = exif.getOrientation();
 					LOG.d("PLUGIN", "Image rotation=" + rotate);
